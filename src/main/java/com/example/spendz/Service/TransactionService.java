@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Date;
 
 @Service
 public class TransactionService {
@@ -62,8 +63,19 @@ public class TransactionService {
 
                 tag.setCategoryId(request.getCategoryId());
                 tagRepo.save(tag);
+
+                updateAllFutureTransactionsFromCurrentTransaction(spend.getTxDate(),spend.getInfo(), request.getCategoryId());
             }
         }
+    }
+
+    public void updateAllFutureTransactionsFromCurrentTransaction(Date startDate, String info, Long categoryId) {
+        List<Spend> spends = spendRepo.findByTxDateGreaterThanEqualAndInfo(startDate, info);
+        for(Spend spend : spends) {
+            spend.setCategoryId(categoryId);
+            spendRepo.save(spend);
+        }
+
     }
 
     public TransactionResponse getAllTransactions(TransactionRequest request) {

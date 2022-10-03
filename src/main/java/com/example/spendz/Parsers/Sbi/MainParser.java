@@ -114,6 +114,8 @@ public class MainParser {
                 spend.setCategoryId(tag.getCategoryId());
             }
 
+            // TODO : Check for known UPI info description (TRAVEL / UBER)
+
             spendRepo.save(spend);
 
         } catch (Exception e) {

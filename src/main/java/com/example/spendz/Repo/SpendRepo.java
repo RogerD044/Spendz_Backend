@@ -16,6 +16,8 @@ public interface SpendRepo extends JpaRepository<Spend, Long> {
 
     List<Spend> findByTxDateGreaterThanEqualAndTxDateLessThan(Date startDate, Date endDate);
 
+    List<Spend> findByTxDateGreaterThanEqualAndInfo(Date startDate,String info);
+
     Spend findByRawDesc(String rawDesc);
 
     Spend findByRawDescAndTxDate(String rawDesc, Date date);

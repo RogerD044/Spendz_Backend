@@ -86,6 +86,8 @@ public class TrendService {
                 income.put(spend.getCategoryId(), categoryAmt);
             } else {
                 Double categoryAmt = categoryExpense.getOrDefault(spend.getCategoryId(), 0.0) + spend.getAmount();
+                // Unplanned Expense : Working code
+                // categoryAmt = categoryAmt - (spend.getSpendTags().contains(5) ? spend.getAmount() : 0.0);
                 categoryExpense.put(spend.getCategoryId(), categoryAmt);
 
                 spend.getSpendTags().forEach(tagId -> {
@@ -108,7 +110,7 @@ public class TrendService {
     }
 
     public TrendResponse getTrendResponse(TrendRequest request) {
-        // Fetch al Categories & Tags
+        // Fetch all Categories & Tags
         if (categoryMap.size() == 0)
             categoryRepo.findAll().forEach(category -> categoryMap.put(category.getId(), category.getCategory()));
         if (tagMap.size() == 0)
