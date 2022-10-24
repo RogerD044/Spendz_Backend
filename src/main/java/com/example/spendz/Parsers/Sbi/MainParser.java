@@ -9,7 +9,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.*;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 
 @Component
 public class MainParser {
@@ -20,6 +23,8 @@ public class MainParser {
     private static final String STARTING_TEXT = "TxnDateValueDateDescriptionRefNo./ChequeNo.DebitCreditBalance";
     private static final String DIR = "src/main/resources/data";
     private static final String ERROR_FILE = "src/main/resources/data/error.txt";
+    private static final List<String> cabTravelDescriptions = Arrays.asList("uber","ola");
+    private static final long travelCategory = 2;
 
     @Autowired
     DateParser dateParser;
@@ -114,7 +119,12 @@ public class MainParser {
                 spend.setCategoryId(tag.getCategoryId());
             }
 
-            // TODO : Check for known UPI info description (TRAVEL / UBER)
+            // TODO : Setting Travel category by default [TO BE CHECKED]
+            for(String infoDesc : cabTravelDescriptions)
+                if(infoDesc.startsWith(spend.getDisplayInfo().toLowerCase())) {
+                    spend.setCategoryId(travelCategory);
+                    break;
+                }
 
             spendRepo.save(spend);
 
