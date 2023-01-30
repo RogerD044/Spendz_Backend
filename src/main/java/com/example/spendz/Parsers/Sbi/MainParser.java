@@ -9,7 +9,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.*;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 
 @Component
 public class MainParser {
@@ -20,6 +22,15 @@ public class MainParser {
     private static final String STARTING_TEXT = "TxnDateValueDateDescriptionRefNo./ChequeNo.DebitCreditBalance";
     private static final String DIR = "src/main/resources/data";
     private static final String ERROR_FILE = "src/main/resources/data/error.txt";
+    private static final HashMap<String, Integer> CATEGORY_MAPPER = new HashMap<String, Integer>(){{
+        put("cab",2);
+        put("ola",2);
+        put("uber",2);
+        put("food",7);
+        put("shop",11);
+        put("grocery",12);
+        put("medicine",13);
+    }};
 
     @Autowired
     DateParser dateParser;
@@ -85,6 +96,8 @@ public class MainParser {
             double credit = amountParser.parseAmount(str[5]);
             double balance = amountParser.parseAmount(str[6]);
             String info = descParser.extractInfoFromDescription(desc);
+            String displayInfo = (info.split("@").length==1) ? info : info.split("@")[0];
+            String categoryComment = (info.split("@").length==1) ? "" : info.split("@")[1];
             String paymentVia = descParser.paymentVia(desc);
 
 //            System.out.println(txDate + " | " +desc+ " | " +debit+ " | " +credit+ " | " + balance);
@@ -101,8 +114,8 @@ public class MainParser {
                     .txDate(txDate)
                     .type((debit == 0.0) ? Spend.SpendType.C : Spend.SpendType.D)
                     .bankName(BANK_TYPE)
-                    .categoryId(1)
-                    .displayInfo(info)
+                    .categoryId(categoryMapper(categoryComment))
+                    .displayInfo(displayInfo)
                     .excludeFromExpense(false)
                     .paymentVia(paymentVia)
                     .build());
@@ -129,66 +142,13 @@ public class MainParser {
         }
     }
 
-//    public void readFile() {
-//
-//        BufferedReader objReader = null;
-//        try {
-//            String strCurrentLine;
-//            objReader = new BufferedReader(new FileReader(fileLocation));
-//
-//            String[] headers = objReader.readLine().split(REGEX);
-//            while ((strCurrentLine = objReader.readLine()) != null) {
-//
-//                String []str = strCurrentLine.split("\t");
-//
-//                Date txDate =  dateParser.parseDate(str[0]);
-//                String desc =  str[2].trim();
-//                double debit =  amountParser.parseAmount(str[4]);
-//                double credit =  amountParser.parseAmount(str[5]);
-//                double balance =  amountParser.parseAmount(str[6]);
-//                String info = descParser.extractInfoFromDescription(desc);
-//                String paymentVia = descParser.paymentVia(desc);
-//
-//                System.out.println(txDate + " | " +desc+ " | " +debit+ " | " +credit+ " | " + balance);
-//
-//                Spend existingSpend = spendRepo.findByRawDesc(desc);
-//                if(null!=existingSpend)
-//                    continue;
-//
-//                Spend spend = (Spend.builder()
-//                        .amount((debit==0.0) ? credit : debit)
-//                        .balance(balance)
-//                        .rawDesc(desc)
-//                        .info(info)
-//                        .txDate(txDate)
-//                        .type((debit==0.0) ? Spend.SpendType.C : Spend.SpendType.D)
-//                        .bankName(BANK_TYPE)
-//                        .categoryId(1)
-//                        .displayInfo(info)
-//                        .excludeFromExpense(false)
-//                        .paymentVia(paymentVia)
-//                        .build());
-//
-//
-//                // Check if this info is already tagged to a category
-//                Tag tag = tagRepo.findByInfo(spend.getInfo());
-//                if(null!=tag) {
-//                    spend.setCategoryId(tag.getCategoryId());
-//                }
-//
-//                spendRepo.save(spend);
-//            }
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        } finally {
-//            try {
-//                if (objReader != null)
-//                    objReader.close();
-//            } catch (IOException ex) {
-//                ex.printStackTrace();
-//            }
-//        }
-//    }
+    private int categoryMapper(String comment) {
+        for(String unlistedCategory : CATEGORY_MAPPER.keySet()) {
+            if(unlistedCategory.startsWith(comment.toLowerCase()))
+                return CATEGORY_MAPPER.get(unlistedCategory);
+        }
 
+        return 1;
+    }
 
 }

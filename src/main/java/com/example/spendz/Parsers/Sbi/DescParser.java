@@ -51,7 +51,10 @@ public class DescParser {
 
     public String extractUpiTransferInfoFromDesc(String desc) {
         try {
-            return desc.substring(desc.indexOf(UPI_TRANSFER) + UPI_TRANSFER.length()).split("/")[2];
+            String receiver = desc.substring(desc.indexOf(UPI_TRANSFER) + UPI_TRANSFER.length()).split("/")[2];
+            String comments =  desc.substring(desc.indexOf(UPI_TRANSFER) + UPI_TRANSFER.length()).split("/")[5];
+            comments = comments.substring(0, comments.length()-2);
+            return receiver + "@" + comments;
         } catch (Exception e) {
             return desc;
         }
