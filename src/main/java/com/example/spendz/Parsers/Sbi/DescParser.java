@@ -10,7 +10,6 @@ public class DescParser {
     private static final String INTERNET_BANKING = "TRANSFER-INB";
     private static final String WITHDRAWAL = "WITHDRAWAL TRANSFER";
     private static final String NEFT = "TRANSFER-NEFT";
-    private static final String UPI_DESCRIPTION_DEFAULT = "Payme--";
 
     public String paymentVia(String desc) {
         if (desc.contains(UPI_TRANSFER))
@@ -52,10 +51,10 @@ public class DescParser {
 
     public String extractUpiTransferInfoFromDesc(String desc) {
         try {
-            String[] textArr = desc.substring(desc.indexOf(UPI_TRANSFER) + UPI_TRANSFER.length()).split("/");
-            String firstText = textArr[2];
-            String description = textArr[5];
-            return firstText + ((description.contains(UPI_DESCRIPTION_DEFAULT)) ? description : "");
+            String receiver = desc.substring(desc.indexOf(UPI_TRANSFER) + UPI_TRANSFER.length()).split("/")[2];
+            String comments =  desc.substring(desc.indexOf(UPI_TRANSFER) + UPI_TRANSFER.length()).split("/")[5];
+            comments = comments.substring(0, comments.length()-2);
+            return receiver + "@" + comments;
         } catch (Exception e) {
             return desc;
         }

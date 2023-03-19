@@ -6,7 +6,6 @@ import org.springframework.stereotype.Repository;
 
 import java.util.Date;
 import java.util.List;
-import java.util.UUID;
 
 @Repository
 public interface SpendRepo extends JpaRepository<Spend, Long> {
@@ -15,8 +14,6 @@ public interface SpendRepo extends JpaRepository<Spend, Long> {
     List<Spend> findByTxDateBetween(Date startDate, Date endDate);
 
     List<Spend> findByTxDateGreaterThanEqualAndTxDateLessThan(Date startDate, Date endDate);
-
-    List<Spend> findByTxDateGreaterThanEqualAndInfo(Date startDate,String info);
 
     Spend findByRawDesc(String rawDesc);
 
@@ -29,4 +26,6 @@ public interface SpendRepo extends JpaRepository<Spend, Long> {
     List<Spend> findByTxDateGreaterThanEqualAndTxDateLessThanOrderByTxDateDesc(Date startDate, Date endDate);
 
     List<Spend> findByTypeAndTxDateGreaterThanEqualAndTxDateLessThan(Spend.SpendType type, Date startDate, Date endDate);
+
+    List<Spend> findAllByDisplayInfoAndCategoryId(String displayInfo, long categoryId);
 }
