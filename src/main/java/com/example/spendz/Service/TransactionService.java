@@ -18,7 +18,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Date;
 
 @Service
 public class TransactionService {
@@ -51,7 +50,6 @@ public class TransactionService {
             spend.setExcludeFromExpense(request.isExcludeFromExpense());
             spend.setCategoryId(request.getCategoryId());
             spend.setSpendTags((null == request.getSpendTags()) ? new HashSet<>() : request.getSpendTags());
-            spendRepo.save(spend);
 
             // Changing upcoming category for given spend info
             if (request.isAllowUpcomingCategoryChanges()) {
@@ -64,18 +62,16 @@ public class TransactionService {
                 tag.setCategoryId(request.getCategoryId());
                 tagRepo.save(tag);
 
-                updateAllFutureTransactionsFromCurrentTransaction(spend.getTxDate(),spend.getInfo(), request.getCategoryId());
+                // Updating Category of All such Spends with CategoryId set to Uncategorized
+                List<Spend> spendsToChange = spendRepo.findAllByDisplayInfoAndCategoryId(spend.getDisplayInfo(), 1);
+                for(Spend sp : spendsToChange) {
+                    sp.setCategoryId(request.getCategoryId());
+                    spendRepo.save(sp);
+                }
             }
-        }
-    }
 
-    public void updateAllFutureTransactionsFromCurrentTransaction(Date startDate, String info, Long categoryId) {
-        List<Spend> spends = spendRepo.findByTxDateGreaterThanEqualAndInfo(startDate, info);
-        for(Spend spend : spends) {
-            spend.setCategoryId(categoryId);
             spendRepo.save(spend);
         }
-
     }
 
     public TransactionResponse getAllTransactions(TransactionRequest request) {
