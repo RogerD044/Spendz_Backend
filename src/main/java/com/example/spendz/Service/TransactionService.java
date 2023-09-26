@@ -143,7 +143,9 @@ public class TransactionService {
             salarySpends.add(salarySpends.get(0));
         }
         else if(salarySpends.size()==0) {
-            salarySpends.add(spendRepo.getLatestSpendForGivenCategory(SALARY_CATEGORY_ID));
+            Spend latestSalarySpend = spendRepo.getLatestSpendForGivenCategory(SALARY_CATEGORY_ID);
+            if(Objects.nonNull(latestSalarySpend))
+                salarySpends.add(spendRepo.getLatestSpendForGivenCategory(SALARY_CATEGORY_ID));
         }
 
         salary += salarySpends.stream().mapToDouble(Spend::getAmount).sum();

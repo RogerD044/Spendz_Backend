@@ -28,6 +28,7 @@ public class MainParser {
         put("shop",11);
         put("grocery",12);
         put("medicine",13);
+        put("bulk posting",4);
     }};
 
     @Autowired

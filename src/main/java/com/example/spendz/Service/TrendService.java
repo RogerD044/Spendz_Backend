@@ -52,7 +52,8 @@ public class TrendService {
         Date firstDayOfMonth = getZeroDate();
         Date firstDayOfNextMonth = DateUtils.addMonths(getZeroDate(), 1);
 
-        for (int it = 0; it < 8; ++it) {
+        // TODO : Last N Months
+        for (int it = 0; it < 24; ++it) {
             // TODO : OPTIMIZE
             List<Spend> monthlySpend = spendRepo.findByTxDateGreaterThanEqualAndTxDateLessThan(firstDayOfMonth, firstDayOfNextMonth);
             responses.add(generateCumulativeDataResponseMonthWise(monthlySpend, firstDayOfMonth));
