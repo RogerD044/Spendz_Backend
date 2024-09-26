@@ -11,14 +11,12 @@ import com.example.spendz.Model.Tag;
 import com.example.spendz.Repo.CategoryRepo;
 import com.example.spendz.Repo.SpendRepo;
 import com.example.spendz.Repo.TagRepo;
+import org.apache.commons.lang3.time.DateUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Date;
+import java.time.LocalDate;
+import java.util.*;
 
 @Service
 public class TransactionService {
@@ -33,6 +31,7 @@ public class TransactionService {
     TagRepo tagRepo;
 
     private static final Long SALARY_CATEGORY_ID = 14L;
+    private static final Long RETURNS_CATEGORY_ID = 15L;
     private static final Long INVESTMENT_CATEGORY_ID = 4L;
 
     public void create(Spend spend) {
@@ -51,7 +50,6 @@ public class TransactionService {
             spend.setExcludeFromExpense(request.isExcludeFromExpense());
             spend.setCategoryId(request.getCategoryId());
             spend.setSpendTags((null == request.getSpendTags()) ? new HashSet<>() : request.getSpendTags());
-            spendRepo.save(spend);
 
             // Changing upcoming category for given spend info
             if (request.isAllowUpcomingCategoryChanges()) {
@@ -64,18 +62,16 @@ public class TransactionService {
                 tag.setCategoryId(request.getCategoryId());
                 tagRepo.save(tag);
 
-                updateAllFutureTransactionsFromCurrentTransaction(spend.getTxDate(),spend.getInfo(), request.getCategoryId());
+                // Updating Category of All such Spends with CategoryId set to Uncategorized
+                List<Spend> spendsToChange = spendRepo.findAllByDisplayInfoAndCategoryId(spend.getDisplayInfo(), 1);
+                for(Spend sp : spendsToChange) {
+                    sp.setCategoryId(request.getCategoryId());
+                    spendRepo.save(sp);
+                }
             }
-        }
-    }
 
-    public void updateAllFutureTransactionsFromCurrentTransaction(Date startDate, String info, Long categoryId) {
-        List<Spend> spends = spendRepo.findByTxDateGreaterThanEqualAndInfo(startDate, info);
-        for(Spend spend : spends) {
-            spend.setCategoryId(categoryId);
             spendRepo.save(spend);
         }
-
     }
 
     public TransactionResponse getAllTransactions(TransactionRequest request) {
@@ -89,8 +85,14 @@ public class TransactionService {
         HashMap<Long, CategoryWiseResponseData> categorySpendMap = new HashMap<>();
 
         double totalAmt = 0.0;
+        double totalSpend = 0.0;
+        double netSpend = 0.0;
+
+        double salary = 0.0;
+        double returns = 0.0;
         double totalIncome = 0.0;
         double miscIncome = 0.0;
+        double savingAndInvestment = 0.0;
         for (Spend spend : spends) {
             // Adding Transaction to the list
             allTransactionResponses.add(AllTransactionResponse.builder()
@@ -111,17 +113,16 @@ public class TransactionService {
                     .build());
 
             // Debit Calculation
-            if (!spend.isExcludeFromExpense() && spend.getType() == Spend.SpendType.D) {
-                totalAmt += spend.getAmount();
+            if (!spend.isExcludeFromExpense()) {
 
                 if (categorySpendMap.containsKey(spend.getCategoryId())) {
                     CategoryWiseResponseData categoryWiseResponseData = categorySpendMap.get(spend.getCategoryId());
-                    categoryWiseResponseData.setAmount((categoryWiseResponseData.getAmount() + spend.getAmount()));
+                    categoryWiseResponseData.setAmount((categoryWiseResponseData.getAmount() + parseSpendAmount(spend)));
                     categoryWiseResponseData.setNoOfSpend(categoryWiseResponseData.getNoOfSpend() + 1);
                 } else {
                     Category currentCategory = hashMap.get(spend.getCategoryId());
                     CategoryWiseResponseData categoryWiseData = CategoryWiseResponseData.builder()
-                            .amount(spend.getAmount())
+                            .amount(parseSpendAmount(spend))
                             .categoryName(currentCategory.getCategory())
                             .color(currentCategory.getRgbColour())
                             .id(currentCategory.getId())
@@ -132,16 +133,33 @@ public class TransactionService {
             }
 
             // Credit Calculation
-            if (!spend.isExcludeFromExpense() && spend.getType() == Spend.SpendType.C) {
-                totalIncome += spend.getAmount();
-
-                if (spend.getCategoryId() != SALARY_CATEGORY_ID && spend.getCategoryId() != INVESTMENT_CATEGORY_ID)
-                    miscIncome += spend.getAmount();
-            }
+            if (!spend.isExcludeFromExpense() && spend.getType() == Spend.SpendType.C && spend.getCategoryId() == RETURNS_CATEGORY_ID)
+                returns += spend.getAmount();
         }
 
+        // Get Salary calculation
+        List<Spend> salarySpends = spendRepo.findByCategoryIdAndTxDateGreaterThanAndTxDateLessThan(SALARY_CATEGORY_ID, request.getStartDate(), request.getEndDate());
+        if(salarySpends!=null && salarySpends.size()>0 && salarySpends.get(0).getTxDate().getMonth()!=request.getEndDate().getMonth()) {
+            salarySpends.add(salarySpends.get(0));
+        }
+        else if(salarySpends.size()==0) {
+            Spend latestSalarySpend = spendRepo.getLatestSpendForGivenCategory(SALARY_CATEGORY_ID);
+            if(Objects.nonNull(latestSalarySpend))
+                salarySpends.add(spendRepo.getLatestSpendForGivenCategory(SALARY_CATEGORY_ID));
+        }
+
+        salary += salarySpends.stream().mapToDouble(Spend::getAmount).sum();
+
+
+        totalIncome = salary + returns;
+        totalSpend += categorySpendMap.values().stream().filter(spendCategory -> spendCategory.getAmount() > 0.0).mapToDouble(CategoryWiseResponseData::getAmount).sum();
+        netSpend = totalSpend - (categorySpendMap.get(INVESTMENT_CATEGORY_ID) == null ? 0.0 : categorySpendMap.get(INVESTMENT_CATEGORY_ID).getAmount());
+        savingAndInvestment = salary - netSpend;
+
+
         for (CategoryWiseResponseData entity : categorySpendMap.values()) {
-            entity.setPercentile((entity.getAmount() / totalAmt) * 100);
+            if(entity.getAmount()>0)
+                entity.setPercentile((entity.getAmount() / totalSpend) * 100);
             entity.setAmount(Math.round(entity.getAmount()));
             categoryWiseResponseDataList.add(entity);
         }
@@ -149,10 +167,32 @@ public class TransactionService {
         return TransactionResponse.builder()
                 .allTransactions(allTransactionResponses)
                 .categoryWiseResponseData(categoryWiseResponseDataList)
-                .totalSpend(Math.round(totalAmt))
+                .totalSpend(totalSpend)
+                .totalSpendPercentOfSalary(Math.round((totalSpend/salary) * 100))
+                .netSpend(netSpend)
+                .netSpendPercentOfSalary(Math.round((netSpend/salary) * 100))
+                .savingAndInvestment(Math.round(savingAndInvestment))
+                .totalSavingPercentOfSalary(Math.round((savingAndInvestment/salary) * 100))
                 .totalIncome(Math.round(totalIncome))
                 .investment(Math.round(categorySpendMap.get(INVESTMENT_CATEGORY_ID) == null ? 0.0 : categorySpendMap.get(INVESTMENT_CATEGORY_ID).getAmount()))
                 .miscIncome(Math.round(miscIncome))
                 .build();
+    }
+
+    private double parseSpendAmount(Spend spend) {
+        if(spend.getType() == Spend.SpendType.D)
+            return spend.getAmount();
+        return -1 * spend.getAmount();
+    }
+
+    private int getMonthBetweenDates(Date startDate, Date endDate) {
+        int countOfMonths = 1;
+        Date tmpDate = DateUtils.addDays(startDate,0);
+        while(tmpDate.getMonth()!=endDate.getMonth() || tmpDate.getYear()!=endDate.getYear()) {
+            tmpDate = DateUtils.addMonths(tmpDate,1);
+            countOfMonths+=1;
+        }
+
+        return countOfMonths;
     }
 }

@@ -16,13 +16,16 @@ import java.util.Objects;
 
 @RestController
 @RequestMapping("/insert/")
-@CrossOrigin(origins = "*")
 public class Read {
-
     @Autowired
     MainParser mainParser;
 
     private final String uploadDir = "src/main/resources/data";
+
+    @GetMapping("data")
+    public void addDataFromFiles() {
+        mainParser.addDataFromFiles();
+    }
 
     @PostMapping("upload")
     public void uploadDataFile(@RequestBody MultipartFile file) {
@@ -40,11 +43,6 @@ public class Read {
 
         System.out.println("FILE UPLOADED SUCCESSFULLY");
         addDataFromFiles();
-    }
-
-    @GetMapping("data")
-    public void addDataFromFiles() {
-        mainParser.addDataFromFiles();
     }
 
     @GetMapping("errdata")

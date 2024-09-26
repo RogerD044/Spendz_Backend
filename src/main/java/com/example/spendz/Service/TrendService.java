@@ -52,7 +52,8 @@ public class TrendService {
         Date firstDayOfMonth = getZeroDate();
         Date firstDayOfNextMonth = DateUtils.addMonths(getZeroDate(), 1);
 
-        for (int it = 0; it < 8; ++it) {
+        // TODO : Last N Months
+        for (int it = 0; it < 24; ++it) {
             // TODO : OPTIMIZE
             List<Spend> monthlySpend = spendRepo.findByTxDateGreaterThanEqualAndTxDateLessThan(firstDayOfMonth, firstDayOfNextMonth);
             responses.add(generateCumulativeDataResponseMonthWise(monthlySpend, firstDayOfMonth));
@@ -86,8 +87,6 @@ public class TrendService {
                 income.put(spend.getCategoryId(), categoryAmt);
             } else {
                 Double categoryAmt = categoryExpense.getOrDefault(spend.getCategoryId(), 0.0) + spend.getAmount();
-                // Unplanned Expense : Working code
-                // categoryAmt = categoryAmt - (spend.getSpendTags().contains(5) ? spend.getAmount() : 0.0);
                 categoryExpense.put(spend.getCategoryId(), categoryAmt);
 
                 spend.getSpendTags().forEach(tagId -> {
@@ -110,7 +109,7 @@ public class TrendService {
     }
 
     public TrendResponse getTrendResponse(TrendRequest request) {
-        // Fetch all Categories & Tags
+        // Fetch al Categories & Tags
         if (categoryMap.size() == 0)
             categoryRepo.findAll().forEach(category -> categoryMap.put(category.getId(), category.getCategory()));
         if (tagMap.size() == 0)
