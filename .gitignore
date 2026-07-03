@@ -31,3 +31,10 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Local JDK Folders ###
+**/oracleJdk-*/
+**/orcale*/
+
+### Local Data Files ###
+src/main/resources/data/
