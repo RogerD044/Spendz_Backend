@@ -30,9 +30,12 @@ public class MainParser {
             put("shop", 11);
             put("grocery", 12);
             put("gro", 12);
+            put("gr", 12);
             put("medicine", 13);
             put("bulk posting", 15);
             put("inv", 4);
+            put("NEFT*HDFC", 14);
+            put("CEMTEX",15);
         }
     };
 
@@ -191,7 +194,7 @@ public class MainParser {
             String categoryComment = (info.split("@").length == 1) ? "" : info.split("@")[1];
             String paymentVia = descParser.paymentVia(desc);
 
-//            System.out.println(txDate + " | " +desc+ " | " +debit+ " | " +credit+ " | " + balance);
+            System.out.println(txDate + " | " +info);
             Spend existingSpend = spendRepo.findByRawDescAndBalance(desc, balance);
             if (null != existingSpend) {
                 return;
@@ -210,7 +213,6 @@ public class MainParser {
                     .excludeFromExpense(false)
                     .paymentVia(paymentVia)
                     .build());
-
             // Check if this info is already tagged to a category
             Tag tag = tagRepo.findByInfo(spend.getInfo());
             if (null != tag) {
@@ -234,7 +236,7 @@ public class MainParser {
 
     private int categoryMapper(String comment) {
         for (String unlistedCategory : CATEGORY_MAPPER.keySet()) {
-            if (unlistedCategory.startsWith(comment.toLowerCase())) {
+            if (comment.toLowerCase().startsWith(unlistedCategory)) {
                 return CATEGORY_MAPPER.get(unlistedCategory);
             }
         }
