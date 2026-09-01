@@ -4,27 +4,40 @@ import com.example.spendz.Model.Spend;
 import com.example.spendz.Model.Tag;
 import com.example.spendz.Repo.SpendRepo;
 import com.example.spendz.Repo.TagRepo;
-import org.apache.commons.lang3.time.DateUtils;
+import org.apache.poi.ss.usermodel.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Locale;
 
 @Component
 public class MainParser {
 
     private String fileLocation = "src/main/java/com/example/spendz/Parsers/Sbi/Aug.tsv";
-    private final String REGEX = "\t";
     private final static String BANK_TYPE = "SBI";
-    private static final String STARTING_TEXT = "TxnDateValueDateDescriptionRefNo./ChequeNo.DebitCreditBalance";
+    private static final String STARTING_TEXT = "Date\tDetails\tRef No/Cheque No\tDebit\tCredit\tBalance\t";
     private static final String DIR = "src/main/resources/data";
     private static final String ERROR_FILE = "src/main/resources/data/error.txt";
-    private static final List<String> cabTravelDescriptions = Arrays.asList("uber","ola");
-    private static final long travelCategory = 2;
+    private static final HashMap<String, Integer> CATEGORY_MAPPER = new HashMap<String, Integer>() {
+        {
+            put("cab", 2);
+            put("ola", 2);
+            put("uber", 2);
+            put("food", 7);
+            put("shop", 11);
+            put("grocery", 12);
+            put("gro", 12);
+            put("gr", 12);
+            put("medicine", 13);
+            put("bulk posting", 15);
+            put("inv", 4);
+            put("NEFT*HDFC", 14);
+            put("CEMTEX",15);
+        }
+    };
 
     @Autowired
     DateParser dateParser;
@@ -46,38 +59,125 @@ public class MainParser {
         File directoryPath = new File(DIR);
         //List of all files and directories
         String contents[] = directoryPath.list();
+        if (contents == null) {
+            return;
+        }
+
         for (int i = 0; i < contents.length; i++) {
             String fileName = DIR + "/" + contents[i];
             File file = new File(fileName);
-            fileName = fileName.replace(".xls", ".tsv");
-            File rename = new File(fileName);
-            file.renameTo(rename);
+//            fileName = fileName.replace(".xls", ".tsv");
+//            File rename = new File(fileName);
+//            file.renameTo(rename);
 
             // Parse Spend
             try {
-                BufferedReader objReader = new BufferedReader(new FileReader(fileName));
-                String fileText = "";
-
-                while ((fileText = objReader.readLine()) != null) {
-                    fileText = fileText.replace(" ", "");
-                    fileText = fileText.replace("\t", "");
-                    if (fileText.equals(STARTING_TEXT))
-                        break;
+                if (isExcelFile(fileName)) {
+                    parseExcelFile(file);
+                } else {
+                    parseTextFile(file);
                 }
-
-                while ((fileText = objReader.readLine()) != null) {
-                    if (fileText.equals(""))
-                        break;
-                    parseToSpend(fileText);
-                }
-
             } catch (Exception e) {
                 e.printStackTrace();
             }
 
             // Delete File
-            rename.delete();
+//            file.delete();
         }
+    }
+
+    private void parseTextFile(File file) throws IOException {
+        try (BufferedReader objReader = new BufferedReader(new FileReader(file))) {
+            String fileText;
+            while ((fileText = objReader.readLine()) != null) {
+                if (isHeaderLine(fileText)) {
+                    break;
+                }
+            }
+
+            while ((fileText = objReader.readLine()) != null) {
+                if (fileText.trim().isEmpty()) {
+                    break;
+                }
+                parseToSpend(fileText);
+            }
+        }
+    }
+
+    private void parseExcelFile(File file) throws Exception {
+        try (InputStream inputStream = new FileInputStream(file); Workbook workbook = WorkbookFactory.create(inputStream)) {
+            Sheet sheet = workbook.getSheetAt(0);
+            DataFormatter formatter = new DataFormatter(Locale.US);
+            FormulaEvaluator evaluator = workbook.getCreationHelper().createFormulaEvaluator();
+
+            boolean foundHeader = false;
+            for (Row row : sheet) {
+                if (isRowEmpty(row)) {
+                    if (foundHeader) {
+                        break;
+                    }
+                    continue;
+                }
+
+                String rowText = formatRow(row, formatter, evaluator);
+                if (!foundHeader) {
+                    if (isHeaderLine(rowText)) {
+                        foundHeader = true;
+                    }
+                    continue;
+                }
+
+                parseToSpend(rowText);
+            }
+        }
+    }
+
+    private String formatRow(Row row, DataFormatter formatter, FormulaEvaluator evaluator) {
+        StringBuilder sb = new StringBuilder();
+        int maxColumns = Math.max(7, row.getLastCellNum());
+        for (int i = 0; i < maxColumns; i++) {
+            if (i > 0) {
+                sb.append('\t');
+            }
+
+            Cell cell = row.getCell(i, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+            if (cell != null) {
+                sb.append(formatter.formatCellValue(cell, evaluator));
+            }
+        }
+        return sb.toString();
+    }
+
+    private boolean isHeaderLine(String line) {
+        if (line == null) {
+            return false;
+        }
+        return line.equals(STARTING_TEXT);
+    }
+
+    private boolean isExcelFile(String fileName) {
+        String normalized = fileName.toLowerCase(Locale.ROOT);
+        return normalized.endsWith(".xlsx") || normalized.endsWith(".xls");
+    }
+
+    private boolean isRowEmpty(Row row) {
+        if (row == null) {
+            return true;
+        }
+
+        int firstCell = row.getFirstCellNum();
+        int lastCell = row.getLastCellNum();
+        if (firstCell < 0 || lastCell < 0) {
+            return true;
+        }
+
+        for (int i = firstCell; i < lastCell; i++) {
+            Cell cell = row.getCell(i, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+            if (cell != null && cell.getCellTypeEnum() != CellType.BLANK) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public void parseToSpend(String strCurrentLine) {
@@ -85,18 +185,20 @@ public class MainParser {
             String[] str = strCurrentLine.split("\t");
 
             Date txDate = dateParser.parseDate(str[0]);
-            String desc = str[2].trim();
-            double debit = amountParser.parseAmount(str[4]);
-            double credit = amountParser.parseAmount(str[5]);
-            double balance = amountParser.parseAmount(str[6]);
+            String desc = str[1].trim();
+            double debit = amountParser.parseAmount(str[3]);
+            double credit = amountParser.parseAmount(str[4]);
+            double balance = amountParser.parseAmount(str[5]);
             String info = descParser.extractInfoFromDescription(desc);
+            String displayInfo = (info.split("@").length == 1) ? info : info.split("@")[0];
+            String categoryComment = (info.split("@").length == 1) ? "" : info.split("@")[1];
             String paymentVia = descParser.paymentVia(desc);
 
-//            System.out.println(txDate + " | " +desc+ " | " +debit+ " | " +credit+ " | " + balance);
-
+            System.out.println(txDate + " | " +info);
             Spend existingSpend = spendRepo.findByRawDescAndBalance(desc, balance);
-            if (null != existingSpend)
+            if (null != existingSpend) {
                 return;
+            }
 
             Spend spend = (Spend.builder()
                     .amount((debit == 0.0) ? credit : debit)
@@ -106,25 +208,16 @@ public class MainParser {
                     .txDate(txDate)
                     .type((debit == 0.0) ? Spend.SpendType.C : Spend.SpendType.D)
                     .bankName(BANK_TYPE)
-                    .categoryId(1)
-                    .displayInfo(info)
+                    .categoryId(categoryMapper(categoryComment))
+                    .displayInfo(displayInfo)
                     .excludeFromExpense(false)
                     .paymentVia(paymentVia)
                     .build());
-
-
             // Check if this info is already tagged to a category
             Tag tag = tagRepo.findByInfo(spend.getInfo());
             if (null != tag) {
                 spend.setCategoryId(tag.getCategoryId());
             }
-
-            // TODO : Setting Travel category by default [TO BE CHECKED]
-            for(String infoDesc : cabTravelDescriptions)
-                if(infoDesc.startsWith(spend.getDisplayInfo().toLowerCase())) {
-                    spend.setCategoryId(travelCategory);
-                    break;
-                }
 
             spendRepo.save(spend);
 
@@ -141,66 +234,14 @@ public class MainParser {
         }
     }
 
-//    public void readFile() {
-//
-//        BufferedReader objReader = null;
-//        try {
-//            String strCurrentLine;
-//            objReader = new BufferedReader(new FileReader(fileLocation));
-//
-//            String[] headers = objReader.readLine().split(REGEX);
-//            while ((strCurrentLine = objReader.readLine()) != null) {
-//
-//                String []str = strCurrentLine.split("\t");
-//
-//                Date txDate =  dateParser.parseDate(str[0]);
-//                String desc =  str[2].trim();
-//                double debit =  amountParser.parseAmount(str[4]);
-//                double credit =  amountParser.parseAmount(str[5]);
-//                double balance =  amountParser.parseAmount(str[6]);
-//                String info = descParser.extractInfoFromDescription(desc);
-//                String paymentVia = descParser.paymentVia(desc);
-//
-//                System.out.println(txDate + " | " +desc+ " | " +debit+ " | " +credit+ " | " + balance);
-//
-//                Spend existingSpend = spendRepo.findByRawDesc(desc);
-//                if(null!=existingSpend)
-//                    continue;
-//
-//                Spend spend = (Spend.builder()
-//                        .amount((debit==0.0) ? credit : debit)
-//                        .balance(balance)
-//                        .rawDesc(desc)
-//                        .info(info)
-//                        .txDate(txDate)
-//                        .type((debit==0.0) ? Spend.SpendType.C : Spend.SpendType.D)
-//                        .bankName(BANK_TYPE)
-//                        .categoryId(1)
-//                        .displayInfo(info)
-//                        .excludeFromExpense(false)
-//                        .paymentVia(paymentVia)
-//                        .build());
-//
-//
-//                // Check if this info is already tagged to a category
-//                Tag tag = tagRepo.findByInfo(spend.getInfo());
-//                if(null!=tag) {
-//                    spend.setCategoryId(tag.getCategoryId());
-//                }
-//
-//                spendRepo.save(spend);
-//            }
-//        } catch (IOException e) {
-//            e.printStackTrace();
-//        } finally {
-//            try {
-//                if (objReader != null)
-//                    objReader.close();
-//            } catch (IOException ex) {
-//                ex.printStackTrace();
-//            }
-//        }
-//    }
+    private int categoryMapper(String comment) {
+        for (String unlistedCategory : CATEGORY_MAPPER.keySet()) {
+            if (comment.toLowerCase().startsWith(unlistedCategory)) {
+                return CATEGORY_MAPPER.get(unlistedCategory);
+            }
+        }
 
+        return 1;
+    }
 
 }

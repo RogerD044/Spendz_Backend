@@ -8,18 +8,18 @@ import java.util.Date;
 
 @Component
 public class DateParser {
-    private static final String REGEX = " ";
+    private static final String REGEX = "/";
 
     public Date parseDate(String dateTxt) {
         String[] dateArr = dateTxt.split(REGEX);
 
         int day = Integer.parseInt(dateArr[0]);
-        int month = convertMonth(dateArr[1]);
+        int month = Integer.parseInt(dateArr[1]);
         int year = Integer.parseInt(dateArr[2]);
 
         Date date = new Date();
         // Dummy date of 1 is given, so that setting month doesn't give an error. Ex - With date as 31, setting month as Nov can throw exception
-        date = DateUtils.setDays(date, 1);
+        date = DateUtils.setDays(date, day);
 
         date = DateUtils.setYears(date, year);
         date = DateUtils.setMonths(date, month - 1);

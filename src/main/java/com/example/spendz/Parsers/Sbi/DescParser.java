@@ -4,16 +4,18 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class DescParser {
-    private static final String UPI_TRANSFER = "TRANSFER-UPI/";
+    private static final String UPI_TRANSFER_DR = "UPI/DR";
+    private static final String UPI_TRANSFER_CR = "UPI/CR";
     private static final String ATM_WITHDRAWAL = "ATM WDL";
     private static final String DEBIT_CARD = "by debit card";
     private static final String INTERNET_BANKING = "TRANSFER-INB";
     private static final String WITHDRAWAL = "WITHDRAWAL TRANSFER";
     private static final String NEFT = "TRANSFER-NEFT";
-    private static final String UPI_DESCRIPTION_DEFAULT = "Payme--";
+    private static final String SALARY = "NEFT*HDFC";
+    private static final String DIVIDENDS = "CEMTEX";
 
     public String paymentVia(String desc) {
-        if (desc.contains(UPI_TRANSFER))
+        if (desc.contains(UPI_TRANSFER_DR) || desc.contains(UPI_TRANSFER_CR))
             return "UPI_TRANSFER";
         else if (desc.contains(ATM_WITHDRAWAL))
             return "ATM_WITHDRAWAL";
@@ -31,8 +33,12 @@ public class DescParser {
 
     public String extractInfoFromDescription(String desc) {
         String info = "";
-        if (desc.contains(UPI_TRANSFER))
+        if (desc.contains(UPI_TRANSFER_DR) || desc.contains(UPI_TRANSFER_CR))
             info = extractUpiTransferInfoFromDesc(desc);
+        else if (desc.contains(SALARY))
+            info = SALARY;
+        else if (desc.contains(DIVIDENDS))
+            info = DIVIDENDS;
         else if (desc.contains(ATM_WITHDRAWAL))
             info = ATM_WITHDRAWAL;
         else if (desc.contains(DEBIT_CARD))
@@ -52,10 +58,11 @@ public class DescParser {
 
     public String extractUpiTransferInfoFromDesc(String desc) {
         try {
-            String[] textArr = desc.substring(desc.indexOf(UPI_TRANSFER) + UPI_TRANSFER.length()).split("/");
-            String firstText = textArr[2];
-            String description = textArr[5];
-            return firstText + ((description.contains(UPI_DESCRIPTION_DEFAULT)) ? description : "");
+            String upiConstant = desc.contains(UPI_TRANSFER_DR) ? UPI_TRANSFER_DR : UPI_TRANSFER_CR;
+            String receiver = desc.substring(desc.indexOf(upiConstant) + upiConstant.length()).split("/")[2];
+            String comments =  desc.substring(desc.indexOf(upiConstant) + upiConstant.length()).split("/")[5];
+            comments = comments.split(" ")[0];
+            return receiver + "@" + comments;
         } catch (Exception e) {
             return desc;
         }
